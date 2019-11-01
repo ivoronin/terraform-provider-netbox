@@ -1,0 +1,20 @@
+language: go
+go:
+- 1.12.x
+env:
+- GO111MODULE=on
+script:
+- make
+arch:
+- amd64
+- arm64
+os: linux
+deploy:
+  provider: releases
+  file: terraform-provider-netbox-*
+  file_glob: true
+  skip_cleanup: true
+  on:
+    tags: true
+  api-key:
+    secure: IrImctR8phes37gjvgqzyiNbOU/7Un8CXZRaDGkzD6ZvPZOgMz2hZjbE2oZswrw6UF5bDPymnyyqYIo0SHF/H7OxS2f2y29zSzHQj84w4MJ5T20/PKBFcfM0bvtTgOmfnXz73cb1xe59wu9oghsCHo6dVUzhkCMjkOFXQptNZ75jvQKvoyaiLjPIxds5srQrU5cEpnVeWUUiJiv7yDLxP5LrZnuTPb5tAzsoriCwNr2+p9IaEnbTrO8DEKHGsuZpxLYJmTrqXzmT6bxYWdtt/1jzIFAJqz6F/YCGsBQdWbFA/YDFTVrWK9oAn3c3dQKnZmidG1AjE78PdSojzssU6jG4FDajqkwsfyrRYvVYH7ztuK1doxLyAM/WM9Xxbid4i+e54oXjQG5tKDvTN0KwDt9Yd62D593Kvy8E9zdCWMfO5Hwltr7EXh3otNpnMm6MV2Ba8xsfzC12ZQbCbdKUpB69gRANHZ6f303iFEFU1R4pUouJlTdaMJTPxRZLx5v6zQ6sMmodkz68CcN3CefcIH4rgA3Y/8B5veZtG2iubsAnFcrLt9nzI8iIM+xn61owzpnq0WgPfRL1wmWWKJx86ui2IyfClZ5us4ydGgtf/s6YXaUqSTgqyGRQ3oc4eKJ86/N7c8+nwevy8l5Bdsfc4Ojo2PH2h8K923VtpTtPQPQ=
