@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net/http"
+        "strconv"
 	"strings"
 	"sync"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
@@ -32,27 +33,58 @@ func resourceIPAddress() *schema.Resource {
 				Type: schema.TypeString,
 				Computed: true,
 			},
+                        "status":  &schema.Schema{
+                                Type: schema.TypeString,
+                                Optional: true,
+                                Computed: true,
+                        },
 			"dns_name":  &schema.Schema{
 				Type: schema.TypeString,
 				Optional: true,
 			},
+                        "description":  &schema.Schema{
+                                Type: schema.TypeString,
+                                Optional: true,
+                        },
 		},
 	}
 }
 
-type IPAddress struct {
-	Id int `json:"id"`
-	Address string `json:"address"`
-	DNSName string `json:"dns_name"`
+type IPAddressRequest struct {
+       Id int `json:"id"`
+       Address string `json:"address"`
+       DNSName string `json:"dns_name"`
+       Description string `json:"description"`
+       Status string `json:"status"`
 }
 
+type IPAddressResponse struct {
+       Id int `json:"id"`
+       Address string `json:"address"`
+       DNSName string `json:"dns_name"`
+       Description string `json:"description"`
+       Status Status
+}
+
+type Status struct {
+       Value int `json:"value"`
+       Label string `json:"label"`
+}
+
+
 func resourceIPAddressCreate(d *schema.ResourceData, m interface{}) error {
-	var body IPAddress
+	var body IPAddressRequest
 	var url string
+        ipaddress_status_choise := map[string]string{
+            "active":     "1",
+            "reserved":   "2",
+            "deprecated": "3",
+            "dhcp":       "5",
+        }
 
 	client := m.(*resty.Client)
 	if ip, ok := d.GetOk("address_cidr"); ok {
-		body = IPAddress{Address: ip.(string), DNSName: d.Get("dns_name").(string)}
+                body = IPAddressRequest{Address: ip.(string), DNSName: d.Get("dns_name").(string), Description: d.Get("description").(string), Status: ipaddress_status_choise[d.Get("status").(string)]}
 		url = "/ipam/ip-addresses/"
 	} else {
 		if id, ok := d.GetOk("prefix_id"); !ok {
@@ -62,11 +94,11 @@ func resourceIPAddressCreate(d *schema.ResourceData, m interface{}) error {
 		}
 		resourceIPAddressCreateAvailableMutex.Lock()
 		defer resourceIPAddressCreateAvailableMutex.Unlock()
-		body = IPAddress{DNSName: d.Get("dns_name").(string)}
+		body = IPAddressRequest{DNSName: d.Get("dns_name").(string), Description: d.Get("description").(string), Status: ipaddress_status_choise[d.Get("status").(string)]}
 	}
 	resp, err := client.R().
 		SetBody(body).
-		SetResult(IPAddress{}).
+		SetResult(IPAddressResponse{}).
 		Post(url)
 	if err != nil {
 		return err
@@ -74,15 +106,22 @@ func resourceIPAddressCreate(d *schema.ResourceData, m interface{}) error {
 	if resp.StatusCode() != http.StatusCreated {
 		return fmt.Errorf("POST: Unexpected HTTP status: %s", resp.Status())
 	}
-	ipaddress := resp.Result().(*IPAddress)
+	ipaddress := resp.Result().(*IPAddressResponse)
 	d.SetId(fmt.Sprintf("%d", ipaddress.Id))
 	return resourceIPAddressRead(d, m)
 }
 
 func resourceIPAddressRead(d *schema.ResourceData, m interface{}) error {
 	client := m.(*resty.Client)
+        ipaddress_status_choise := map[string]string{
+            "1": "active",
+            "2": "reserved",
+            "3": "deprecated",
+            "5": "dhcp",
+        }
+
 	resp, err := client.R().
-		SetResult(IPAddress{}).
+		SetResult(IPAddressResponse{}).
 		Get(fmt.Sprintf("/ipam/ip-addresses/%s/", d.Id()))
 	if err != nil {
 		return err
@@ -90,17 +129,25 @@ func resourceIPAddressRead(d *schema.ResourceData, m interface{}) error {
 	if resp.StatusCode() != http.StatusOK {
 		return fmt.Errorf("GET: Unexpected HTTP status: %s", resp.Status())
 	}
-	ipaddress := resp.Result().(*IPAddress)
+	ipaddress := resp.Result().(*IPAddressResponse)
 	d.Set("address_cidr", ipaddress.Address)
 	address, _ := SplitAddressMask(ipaddress.Address)
 	d.Set("address", address)
+        d.Set("status", ipaddress_status_choise[strconv.Itoa(ipaddress.Status.Value)])
+        d.Set("description", ipaddress.Description)
 	return nil
 }
 
 func resourceIPAddressUpdate(d *schema.ResourceData, m interface{}) error {
 	client := m.(*resty.Client)
+        ipaddress_status_choise := map[string]string{
+            "active":     "1",
+            "reserved":   "2",
+            "deprecated": "3",
+            "dhcp":       "5",
+        }
 	resp, err := client.R().
-		SetBody(IPAddress{Address: d.Get("address_cidr").(string), DNSName: d.Get("dns_name").(string)}).
+		SetBody(IPAddressRequest{Address: d.Get("address_cidr").(string), DNSName: d.Get("dns_name").(string), Description: d.Get("description").(string), Status: ipaddress_status_choise[d.Get("status").(string)]}).
                 Put(fmt.Sprintf("/ipam/ip-addresses/%s/", d.Id()))
 	if err != nil {
 		return err
